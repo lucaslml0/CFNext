@@ -1,4 +1,4 @@
-*name: CFNext Cloudflare Worker Auto Deploy
+name: CFNext Cloudflare Worker Auto Deploy
 
 on:
   schedule:
