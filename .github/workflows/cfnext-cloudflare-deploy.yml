@@ -55,8 +55,11 @@ jobs:
         if: steps.version.outputs.upstream == steps.version.outputs.current
         run: echo "Already deployed version ${{ steps.version.outputs.current }}; nothing to do."
 
-      - name: Validate Worker source
+      - name: Validate deployment configuration
         if: steps.version.outputs.upstream != steps.version.outputs.current
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         shell: bash
         run: |
           set -euo pipefail
@@ -64,11 +67,11 @@ jobs:
             echo "Missing or empty CFNext-小说混淆版.js" >&2
             exit 1
           }
-          test -n "${{ secrets.CLOUDFLARE_API_TOKEN }}" || {
+          test -n "$CF_API_TOKEN" || {
             echo "Missing repository secret CLOUDFLARE_API_TOKEN" >&2
             exit 1
           }
-          test -n "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" || {
+          test -n "$CF_ACCOUNT_ID" || {
             echo "Missing repository secret CLOUDFLARE_ACCOUNT_ID" >&2
             exit 1
           }
