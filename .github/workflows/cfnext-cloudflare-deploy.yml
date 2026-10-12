@@ -1,0 +1,106 @@
+name: CFNext Cloudflare Worker Auto Deploy
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cfnext-cloudflare-deploy
+  cancel-in-progress: false
+
+jobs:
+  check-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read upstream version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          README_URL="https://raw.githubusercontent.com/PAICNI/CFNext/refs/heads/main/README.md"
+          curl --fail --silent --show-error --location "$README_URL" -o /tmp/upstream-README.md
+          UPSTREAM_VERSION="$(python - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("/tmp/upstream-README.md").read_text(encoding="utf-8")
+          match = re.search(r"更新日志\s*_V([0-9]+(?:\.[0-9]+)+)", text)
+          if not match:
+              raise SystemExit("Could not extract version from upstream README")
+          print(match.group(1))
+          PY
+          )"
+          if [[ ! "$UPSTREAM_VERSION" =~ ^[0-9]+([.][0-9]+)+$ ]]; then
+            echo "Invalid upstream version: $UPSTREAM_VERSION" >&2
+            exit 1
+          fi
+          CURRENT_VERSION=""
+          if [[ -f VERSION.txt ]]; then
+            CURRENT_VERSION="$(tr -d '[:space:]' < VERSION.txt)"
+          fi
+          echo "upstream=$UPSTREAM_VERSION" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Upstream version: $UPSTREAM_VERSION"
+          echo "Recorded version: ${CURRENT_VERSION:-<empty>}"
+
+      - name: Skip when already up to date
+        if: steps.version.outputs.upstream == steps.version.outputs.current
+        run: echo "Already deployed version ${{ steps.version.outputs.current }}; nothing to do."
+
+      - name: Validate Worker source
+        if: steps.version.outputs.upstream != steps.version.outputs.current
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "CFNext-小说混淆版.js" || {
+            echo "Missing or empty CFNext-小说混淆版.js" >&2
+            exit 1
+          }
+          test -n "${{ secrets.CLOUDFLARE_API_TOKEN }}" || {
+            echo "Missing repository secret CLOUDFLARE_API_TOKEN" >&2
+            exit 1
+          }
+          test -n "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" || {
+            echo "Missing repository secret CLOUDFLARE_ACCOUNT_ID" >&2
+            exit 1
+          }
+
+      - name: Deploy Worker
+        if: steps.version.outputs.upstream != steps.version.outputs.current
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WORKER_NAME: ${{ vars.CFNEXT_WORKER_NAME }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORKER_NAME="${WORKER_NAME:-cfnext}"
+          npx --yes wrangler@4 deploy "CFNext-小说混淆版.js" \
+            --name "$WORKER_NAME" \
+            --compatibility-date "2026-10-12"
+
+      - name: Record deployed version
+        if: steps.version.outputs.upstream != steps.version.outputs.current
+        env:
+          UPSTREAM_VERSION: ${{ steps.version.outputs.upstream }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$UPSTREAM_VERSION" > VERSION.txt
+          if git diff --quiet -- VERSION.txt; then
+            echo "VERSION.txt already contains $UPSTREAM_VERSION"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VERSION.txt
+          git commit -m "chore: record deployed CFNext version $UPSTREAM_VERSION"
+          git push
