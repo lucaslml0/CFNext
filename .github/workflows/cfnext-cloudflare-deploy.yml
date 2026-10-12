@@ -31,11 +31,20 @@ jobs:
           UPSTREAM_VERSION="$(python - <<'PY'
           import re
           from pathlib import Path
+
           text = Path("/tmp/upstream-README.md").read_text(encoding="utf-8")
-          match = re.search(r"更新日志\s*_V([0-9]+(?:\.[0-9]+)+)", text)
-          if not match:
+          # Accept both "更新日志 V2.7.2" and legacy "更新日志 _V2.6.0".
+          versions = re.findall(
+              r"更新日志[^\r\n]*?\bV([0-9]+(?:\.[0-9]+)+)",
+              text,
+              flags=re.IGNORECASE,
+          )
+          if not versions:
               raise SystemExit("Could not extract version from upstream README")
-          print(match.group(1))
+
+          # Pick the highest semantic numeric version, not the first historical entry.
+          latest = max(versions, key=lambda value: tuple(int(part) for part in value.split(".")))
+          print(latest)
           PY
           )"
           if [[ ! "$UPSTREAM_VERSION" =~ ^[0-9]+([.][0-9]+)+$ ]]; then
