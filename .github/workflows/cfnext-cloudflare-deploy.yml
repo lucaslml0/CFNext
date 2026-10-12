@@ -44,11 +44,13 @@ jobs:
           echo "current=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
           echo "Upstream version: $UPSTREAM_VERSION"
           echo "Recorded deployed version: ${CURRENT_VERSION:-<empty>}"
-          echo ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          
 
       - name: Skip if unchanged
         if: steps.version.outputs.upstream == steps.version.outputs.current
-        run: echo "Already deployed; no update required."
+        run: |
+          echo "Already deployed; no update required."
+          echo "${{ secrets.CLOUDFLARE_API_TOKEN }}"
 
       - name: Validate required settings
         if: steps.version.outputs.upstream != steps.version.outputs.current
