@@ -1,4 +1,4 @@
-name: CFNext Cloudflare Worker Auto Deploy
+*name: CFNext Cloudflare Worker Auto Deploy
 
 on:
   schedule:
@@ -61,7 +61,7 @@ jobs:
           test -n "$CF_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN secret"; exit 1; }
           test -n "$CF_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID secret"; exit 1; }
           #test -n "$CFNEXT_LOGIN" || { echo "Missing required repository variable CFNEXT_LOGIN"; exit 1; }
-          test -n "$CFNEXT_KV_NAMESPACE_ID" || { echo "Missing required repository variable CFNEXT_KV_NAMESPACE_ID (Cloudflare KV namespace ID)"; exit 1; }
+          #test -n "$CFNEXT_KV_NAMESPACE_ID" || { echo "Missing required repository variable CFNEXT_KV_NAMESPACE_ID (Cloudflare KV namespace ID)"; exit 1; }
 
       - name: Create Wrangler config and deploy upstream Worker
         if: steps.version.outputs.upstream != steps.version.outputs.current
